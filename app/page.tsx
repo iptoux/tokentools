@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from "react";
+import { Copy, Code } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,8 +11,8 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type EncodingFormat = "base64" | "hex" | "url-safe";
 
@@ -191,6 +192,7 @@ export default function Home() {
   const [encodingFormat, setEncodingFormat] = useState<EncodingFormat>("base64");
   const [encodingStrength, setEncodingStrength] = useState<number>(2);
   const [showCounts, setShowCounts] = useState<boolean>(true);
+  const [showCopyReady, setShowCopyReady] = useState<boolean>(false);
   const [toonDelimiter, setToonDelimiter] = useState<"," | "\t" | "|">(",");
   const [toonKeyFolding, setToonKeyFolding] = useState<'off' | 'safe'>('off');
   const [showTokens, setShowTokens] = useState<boolean>(false);
@@ -462,34 +464,42 @@ export default function Home() {
         <header className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">No auth</Badge>
-              <span className="text-xs text-muted-foreground">JSON → YAML → Toon</span>
+              <Badge variant="outline">• TOKEN STUDIO</Badge>
             </div>
             <h1 className="mt-2 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-              TokenTools
+              JSON to YAML to TOON
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground sm:text-base">
-              Paste JSON once and view it as pretty JSON, minified JSON, YAML, and a token-aware toon encoding.
+              Paste JSON, explore alternate formats, and see how token counts change for different encodings.
             </p>
           </div>
         </header>
 
-        <section className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className="grid flex-1 gap-6 lg:grid-cols-2">
+          {/* LEFT: Input JSON */}
           <Card className="flex flex-col border-border/60">
             <CardHeader>
-              <CardTitle>Input JSON</CardTitle>
-              <CardDescription>Paste or type any valid JSON payload.</CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Input JSON</CardTitle>
+                  <CardDescription>Bring your payload; we handle format and token math.</CardDescription>
+                </div>
+                <Badge variant="outline" className="whitespace-nowrap">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full bg-green-500"></span>
+                  Live validated
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col gap-3">
               <div className="space-y-2">
-                <Label htmlFor="json-input">JSON</Label>
+                <Label htmlFor="json-input">Payload</Label>
                 <Textarea
                   id="json-input"
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   spellCheck={false}
                   className="min-h-[220px] font-mono text-xs md:text-sm"
-                  placeholder='e.g. {"user":"alice","roles":["admin","editor"]}'
+                  placeholder='Paste JSON or type { "users": [...] }'
                 />
               </div>
               {error && (
@@ -497,114 +507,68 @@ export default function Home() {
                   Parse error: {error}
                 </p>
               )}
+              <div className="mt-auto">
+                <Button variant="outline" size="sm" className="w-full">
+                  <span className="mr-2">📋</span>
+                  Load sample
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="h-fit border-border/60">
+          {/* RIGHT: Format and Comparison */}
+          <Card className="flex flex-col border-border/60">
             <CardHeader>
-              <CardTitle>Encoding options</CardTitle>
-              <CardDescription>
-                Configure toon encoding and optional character / byte statistics.
-              </CardDescription>
+              <CardTitle>Format and Token Comparison</CardTitle>
+              <CardDescription>Compare the same payload as pretty JSON, minified JSON, YAML, and TOON.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="encoding-format">Encoding format</Label>
-                <Select
-                  value={encodingFormat}
-                  onValueChange={(value) => setEncodingFormat(value as EncodingFormat)}
+            <CardContent className="flex flex-1 flex-col gap-6">
+              {/* Feature Badges */}
+              <div className="flex flex-wrap gap-2">
+                <Badge 
+                  variant={showTokens ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => setShowTokens(!showTokens)}
                 >
-                  <SelectTrigger id="encoding-format">
-                    <SelectValue placeholder="Select encoding format" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="base64">Base64 (compact, default)</SelectItem>
-                    <SelectItem value="hex">Hex</SelectItem>
-                    <SelectItem value="url-safe">URL-safe</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  A toon is derived from the minified JSON using the selected encoding.
-                </p>
+                  Token aware
+                </Badge>
+                <Badge 
+                  variant={showCopyReady ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => setShowCopyReady(!showCopyReady)}
+                >
+                  Copy-ready payloads
+                </Badge>
+                <Badge 
+                  variant={showCounts ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => setShowCounts(!showCounts)}
+                >
+                  Character and byte counts
+                </Badge>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="toon-delimiter">TOON delimiter</Label>
-                <Select value={toonDelimiter} onValueChange={(v) => setToonDelimiter(v as any)}>
-                  <SelectTrigger id="toon-delimiter">
-                    <SelectValue placeholder="TOON delimiter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="," defaultChecked>Comma (default)</SelectItem>
-                    <SelectItem value="\t">Tab</SelectItem>
-                    <SelectItem value="|">Pipe</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="toon-keyfold">Key folding</Label>
-                  <Select value={toonKeyFolding} onValueChange={(v) => setToonKeyFolding(v as any)}>
-                    <SelectTrigger id="toon-keyfold">
-                      <SelectValue placeholder="Key folding" />
+              {/* Settings */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="encoding">ENCODING</Label>
+                  <Select
+                    value={encodingFormat}
+                    onValueChange={(value) => setEncodingFormat(value as EncodingFormat)}
+                  >
+                    <SelectTrigger id="encoding" className="w-full">
+                      <SelectValue placeholder="Select encoding" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="off">off</SelectItem>
-                      <SelectItem value="safe">safe</SelectItem>
+                      <SelectItem value="base64">base64</SelectItem>
+                      <SelectItem value="hex">hex</SelectItem>
+                      <SelectItem value="url-safe">url-safe</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-xs text-muted-foreground">TOON (Token-Oriented Object Notation) is a compact format designed for LLM inputs. See the spec for details.</p>
-              </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="encoding-strength">Encoding strength</Label>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {encodingStrength}
-                  </span>
-                </div>
-                <Slider
-                  id="encoding-strength"
-                  min={1}
-                  max={5}
-                  step={1}
-                  value={[encodingStrength]}
-                  onValueChange={(value) => setEncodingStrength(value[0] ?? 2)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Higher values group encoded bytes into longer token-like chunks.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-md border border-border/60 bg-muted/40 px-3 py-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="show-counts">Show character &amp; byte count</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Counts are computed per output using UTF-8 bytes.
-                  </p>
-                </div>
-                <Switch
-                  id="show-counts"
-                  checked={showCounts}
-                  onCheckedChange={setShowCounts}
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-md border border-border/60 bg-muted/40 px-3 py-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="show-tokens">Show tokens</Label>
-                  <p className="text-xs text-muted-foreground">Enable token highlighting & token IDs</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Select value={tokenizationModel} onValueChange={(v) => setTokenizationModel(v)}>
-                    <SelectTrigger id="tokenization-model">
-                      <SelectValue placeholder="Select tokenizer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cl100k_base">cl100k_base</SelectItem>
-                      <SelectItem value="gpt2">gpt2</SelectItem>
-                    </SelectContent>
-                  </Select>
-
+                <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/40 px-3 py-2">
+                  <Label htmlFor="show-tokens" className="text-xs">Show tokens</Label>
                   <Switch id="show-tokens" checked={showTokens} onCheckedChange={setShowTokens} />
                 </div>
               </div>
@@ -648,41 +612,65 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopyOutput("pretty")}
-                      disabled={!getOutputFor("pretty")}
-                    >
-                      Copy output
-                    </Button>
-                  {showTokens && (
-                    <div className="flex items-center gap-3">
-                      <ButtonGroup>
-                        <Button
-                          variant={tokenViewPerTab.pretty === "text" ? "default" : "outline"}
-                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "text" })}
-                        >
-                          Text
-                        </Button>
-                        <Button
-                          variant={tokenViewPerTab.pretty === "ids" ? "default" : "outline"}
-                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "ids" })}
-                        >
-                          Token IDs
-                        </Button>
-                      </ButtonGroup>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCopyTokenIds("pretty")}
-                        disabled={getTokenIdsFor("pretty").length === 0}
-                      >
-                        Copy token IDs
-                      </Button>
+                  <div className="flex items-center justify-end">
+                    <div className="flex items-center gap-2">
+                      {showTokens && (
+                        <>
+                          <Badge
+                            variant={tokenViewPerTab.pretty === "text" ? "default" : "outline"}
+                            className="cursor-pointer"
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "text" })}
+                          >
+                            Text
+                          </Badge>
+                          <Badge
+                            variant={tokenViewPerTab.pretty === "ids" ? "default" : "outline"}
+                            className="cursor-pointer"
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "ids" })}
+                          >
+                            Token IDs
+                          </Badge>
+                        </>
+                      )}
+                      {showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyOutput("pretty")}
+                                disabled={!getOutputFor("pretty")}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy output</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {showTokens && showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyTokenIds("pretty")}
+                                disabled={getTokenIdsFor("pretty").length === 0}
+                              >
+                                <Code className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy token IDs</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
-                  )}
                   </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
@@ -716,41 +704,65 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopyOutput("minified")}
-                      disabled={!getOutputFor("minified")}
-                    >
-                      Copy output
-                    </Button>
-                  {showTokens && (
-                    <div className="flex items-center gap-3">
-                      <ButtonGroup>
-                        <Button
-                          variant={tokenViewPerTab.minified === "text" ? "default" : "outline"}
-                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, minified: "text" })}
-                        >
-                          Text
-                        </Button>
-                        <Button
-                          variant={tokenViewPerTab.minified === "ids" ? "default" : "outline"}
-                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, minified: "ids" })}
-                        >
-                          Token IDs
-                        </Button>
-                      </ButtonGroup>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCopyTokenIds("minified")}
-                        disabled={getTokenIdsFor("minified").length === 0}
-                      >
-                        Copy token IDs
-                      </Button>
+                  <div className="flex items-center justify-end">
+                    <div className="flex items-center gap-2">
+                      {showTokens && (
+                        <>
+                          <Badge
+                            variant={tokenViewPerTab.minified === "text" ? "default" : "outline"}
+                            className="cursor-pointer"
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, minified: "text" })}
+                          >
+                            Text
+                          </Badge>
+                          <Badge
+                            variant={tokenViewPerTab.minified === "ids" ? "default" : "outline"}
+                            className="cursor-pointer"
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, minified: "ids" })}
+                          >
+                            Token IDs
+                          </Badge>
+                        </>
+                      )}
+                      {showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyOutput("minified")}
+                                disabled={!getOutputFor("minified")}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy output</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {showTokens && showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyTokenIds("minified")}
+                                disabled={getTokenIdsFor("minified").length === 0}
+                              >
+                                <Code className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy token IDs</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
-                  )}
                   </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
@@ -784,41 +796,65 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopyOutput("yaml")}
-                      disabled={!getOutputFor("yaml")}
-                    >
-                      Copy output
-                    </Button>
-                  {showTokens && (
-                      <div className="flex items-center gap-3">
-                        <ButtonGroup>
-                          <Button
+                  <div className="flex items-center justify-end">
+                    <div className="flex items-center gap-2">
+                      {showTokens && (
+                        <>
+                          <Badge
                             variant={tokenViewPerTab.yaml === "text" ? "default" : "outline"}
+                            className="cursor-pointer"
                             onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, yaml: "text" })}
                           >
                             Text
-                          </Button>
-                          <Button
+                          </Badge>
+                          <Badge
                             variant={tokenViewPerTab.yaml === "ids" ? "default" : "outline"}
+                            className="cursor-pointer"
                             onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, yaml: "ids" })}
                           >
                             Token IDs
-                          </Button>
-                        </ButtonGroup>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyTokenIds("yaml")}
-                          disabled={getTokenIdsFor("yaml").length === 0}
-                        >
-                          Copy token IDs
-                        </Button>
-                      </div>
-                  )}
+                          </Badge>
+                        </>
+                      )}
+                      {showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyOutput("yaml")}
+                                disabled={!getOutputFor("yaml")}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy output</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {showTokens && showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyTokenIds("yaml")}
+                                disabled={getTokenIdsFor("yaml").length === 0}
+                              >
+                                <Code className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy token IDs</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                   </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
@@ -852,41 +888,65 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCopyOutput("toon")}
-                      disabled={!getOutputFor("toon")}
-                    >
-                      Copy output
-                    </Button>
-                  {showTokens && (
-                      <div className="flex items-center gap-3">
-                        <ButtonGroup>
-                          <Button
+                  <div className="flex items-center justify-end">
+                    <div className="flex items-center gap-2">
+                      {showTokens && (
+                        <>
+                          <Badge
                             variant={tokenViewPerTab.toon === "text" ? "default" : "outline"}
+                            className="cursor-pointer"
                             onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, toon: "text" })}
                           >
                             Text
-                          </Button>
-                          <Button
+                          </Badge>
+                          <Badge
                             variant={tokenViewPerTab.toon === "ids" ? "default" : "outline"}
+                            className="cursor-pointer"
                             onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, toon: "ids" })}
                           >
                             Token IDs
-                          </Button>
-                        </ButtonGroup>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCopyTokenIds("toon")}
-                          disabled={getTokenIdsFor("toon").length === 0}
-                        >
-                          Copy token IDs
-                        </Button>
-                      </div>
-                  )}
+                          </Badge>
+                        </>
+                      )}
+                      {showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyOutput("toon")}
+                                disabled={!getOutputFor("toon")}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy output</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {showTokens && showCopyReady && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyTokenIds("toon")}
+                                disabled={getTokenIdsFor("toon").length === 0}
+                              >
+                                <Code className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copy token IDs</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                   </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
