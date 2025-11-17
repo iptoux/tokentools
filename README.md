@@ -1,6 +1,7 @@
 <div align="center">
 
-# 🎨 Token Studio
+# <img src="public/tokenstudio-logo.png" alt="Token Studio" width="32" height="32"> Token Studio
+
 
 **Transform JSON across multiple formats and analyze token usage**
 
