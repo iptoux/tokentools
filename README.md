@@ -5,10 +5,13 @@
 
 **Transform JSON across multiple formats and analyze token usage**
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://tokenstudio-web.vercel.app)
 [![JSON](https://img.shields.io/badge/JSON-000000?style=for-the-badge&logo=json&logoColor=white)](https://www.json.org/)
 [![YAML](https://img.shields.io/badge/YAML-CB171E?style=for-the-badge&logo=yaml&logoColor=white)](https://yaml.org/)
 [![TOON](https://img.shields.io/badge/TOON-FF6B6B?style=for-the-badge)](https://github.com/toon-format/toon)
 [![TOML](https://img.shields.io/badge/TOML-9C4221?style=for-the-badge&logo=toml&logoColor=white)](https://toml.io/)
+
+**🌐 Live Demo**: [tokenstudio-web.vercel.app](https://tokenstudio-web.vercel.app)
 
 </div>
 
@@ -26,6 +29,8 @@
 - 🌓 **Dark Mode**: Built-in theme support
 
 ## 🚀 Quick Start
+
+**🌐 Live Demo**: [tokenstudio-web.vercel.app](https://tokenstudio-web.vercel.app)
 
 ### Prerequisites
 

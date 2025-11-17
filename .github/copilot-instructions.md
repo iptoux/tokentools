@@ -2,6 +2,8 @@
 
 **Token Studio** is a Next.js 16 application for tokenizing text using the OpenAI GPT tokenizer (cl100k_base). It provides both a web UI and an API endpoint for encoding/decoding text into tokens.
 
+**🌐 Production URL**: [tokenstudio-web.vercel.app](https://tokenstudio-web.vercel.app)
+
 ## Architecture
 
 ### Project Structure
@@ -82,6 +84,8 @@ pnpm build        # Production build
 pnpm start        # Run production server
 pnpm lint         # Run ESLint
 ```
+
+**Production**: Deployed at [tokenstudio-web.vercel.app](https://tokenstudio-web.vercel.app)
 
 ### Dependencies
 - **Tokenization**: `@dqbd/tiktoken` (official OpenAI tokenizer wrapper)
