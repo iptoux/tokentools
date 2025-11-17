@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,11 @@ type Counts = {
 
 type TokenCounts = Counts & {
   tokens: number;
+};
+
+type Token = {
+  id: number;
+  text: string;
 };
 
 function calculateCounts(value: string): Counts {
@@ -196,6 +201,9 @@ export default function Home() {
     yaml: "text",
     toon: "text",
   });
+  const [exactTokens, setExactTokens] = useState<Record<string, Token[]>>({});
+  const [isTokenizing, setIsTokenizing] = useState<boolean>(false);
+  const [tokenizeError, setTokenizeError] = useState<string>("");
 
   const { error, prettyJson, minifiedJson, yaml, toon } = useMemo(() => {
     if (!input.trim()) {
@@ -250,11 +258,112 @@ export default function Home() {
   const yamlTokenCounts: TokenCounts = { ...yamlCounts, tokens: yamlTokenCount };
   const toonTokenCounts: TokenCounts = { ...toonCounts, tokens: toonTokenCount };
 
+  useEffect(() => {
+    if (tokenizationModel !== "cl100k_base") {
+      setExactTokens({});
+      setIsTokenizing(false);
+      setTokenizeError("");
+      return;
+    }
+
+    // Only compute exact tokenization when needed.
+    if (!showTokens && !showCounts) {
+      setExactTokens({});
+      setIsTokenizing(false);
+      setTokenizeError("");
+      return;
+    }
+
+    const texts = {
+      pretty: prettyJson,
+      minified: minifiedJson,
+      yaml,
+      toon,
+    };
+
+    if (!texts.pretty && !texts.minified && !texts.yaml && !texts.toon) {
+      setExactTokens({});
+      setIsTokenizing(false);
+      setTokenizeError("");
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const run = async () => {
+      try {
+        setIsTokenizing(true);
+        setTokenizeError("");
+
+        const res = await fetch("/api/tokenize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model: tokenizationModel, texts }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const payload = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!cancelled) {
+            setExactTokens({});
+            setTokenizeError(payload.error || "Failed to tokenize");
+          }
+          return;
+        }
+
+        const payload = (await res.json()) as { tokens?: Record<string, Token[]> };
+        if (!cancelled) {
+          setExactTokens(payload.tokens ?? {});
+        }
+      } catch (err) {
+        if (cancelled || (err instanceof DOMException && err.name === "AbortError")) return;
+        setExactTokens({});
+        setTokenizeError(err instanceof Error ? err.message : "Failed to tokenize");
+      } finally {
+        if (!cancelled) {
+          setIsTokenizing(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [prettyJson, minifiedJson, yaml, toon, tokenizationModel, showTokens, showCounts]);
+
   // tokenized breakdown for highlighting / ids — computed lazily when tokens are enabled
-  const prettyTokens = showTokens ? simpleTokenize(prettyJson) : undefined;
-  const minifiedTokens = showTokens ? simpleTokenize(minifiedJson) : undefined;
-  const yamlTokens = showTokens ? simpleTokenize(yaml) : undefined;
-  const toonTokens = showTokens ? (toon ? simpleTokenize(toon).map((t) => ({ id: t.id ?? undefined, text: t.text })) : []) : undefined;
+  const prettyTokens =
+    showTokens && tokenizationModel === "cl100k_base" && exactTokens.pretty
+      ? (exactTokens.pretty as any)
+      : showTokens
+        ? simpleTokenize(prettyJson)
+        : undefined;
+  const minifiedTokens =
+    showTokens && tokenizationModel === "cl100k_base" && exactTokens.minified
+      ? (exactTokens.minified as any)
+      : showTokens
+        ? simpleTokenize(minifiedJson)
+        : undefined;
+  const yamlTokens =
+    showTokens && tokenizationModel === "cl100k_base" && exactTokens.yaml
+      ? (exactTokens.yaml as any)
+      : showTokens
+        ? simpleTokenize(yaml)
+        : undefined;
+  const toonTokens =
+    showTokens && tokenizationModel === "cl100k_base" && exactTokens.toon
+      ? (exactTokens.toon as any)
+      : showTokens
+        ? toon
+          ? simpleTokenize(toon).map((t) => ({ id: t.id ?? undefined, text: t.text }))
+          : []
+        : undefined;
 
   if (showTokens) {
     if (prettyTokens) prettyTokenCounts.tokens = prettyTokens.filter((t) => t.id).length;
@@ -262,6 +371,90 @@ export default function Home() {
     if (yamlTokens) yamlTokenCounts.tokens = (yamlTokens as any[]).filter((t) => t.id).length;
     if (toonTokens) toonTokenCounts.tokens = (toonTokens as any[]).length;
   }
+
+  if (tokenizationModel === "cl100k_base") {
+    if (exactTokens.pretty && exactTokens.pretty.length > 0) {
+      prettyTokenCounts.tokens = exactTokens.pretty.length;
+    }
+    if (exactTokens.minified && exactTokens.minified.length > 0) {
+      minifiedTokenCounts.tokens = exactTokens.minified.length;
+    }
+    if (exactTokens.yaml && exactTokens.yaml.length > 0) {
+      yamlTokenCounts.tokens = exactTokens.yaml.length;
+    }
+    if (exactTokens.toon && exactTokens.toon.length > 0) {
+      toonTokenCounts.tokens = exactTokens.toon.length;
+    }
+  }
+
+  const getTokenIdsFor = (kind: "pretty" | "minified" | "yaml" | "toon"): number[] => {
+    let tokens: any[] | undefined;
+
+    if (tokenizationModel === "cl100k_base" && exactTokens[kind]) {
+      tokens = exactTokens[kind] as any[];
+    } else {
+      switch (kind) {
+        case "pretty":
+          tokens = (prettyTokens as any[]) || [];
+          break;
+        case "minified":
+          tokens = (minifiedTokens as any[]) || [];
+          break;
+        case "yaml":
+          tokens = (yamlTokens as any[]) || [];
+          break;
+        case "toon":
+          tokens = (toonTokens as any[]) || [];
+          break;
+      }
+    }
+
+    if (!tokens) return [];
+
+    return tokens
+      .map((t) => (typeof t.id === "number" ? t.id : null))
+      .filter((id): id is number => id !== null);
+  };
+
+  const handleCopyTokenIds = async (kind: "pretty" | "minified" | "yaml" | "toon") => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+    const ids = getTokenIdsFor(kind);
+    if (!ids.length) return;
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(ids));
+    } catch {
+      // ignore clipboard errors
+    }
+  };
+
+  const getOutputFor = (kind: "pretty" | "minified" | "yaml" | "toon"): string => {
+    switch (kind) {
+      case "pretty":
+        return prettyJson;
+      case "minified":
+        return minifiedJson;
+      case "yaml":
+        return yaml;
+      case "toon":
+        return toon;
+      default:
+        return "";
+    }
+  };
+
+  const handleCopyOutput = async (kind: "pretty" | "minified" | "yaml" | "toon") => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return;
+
+    const output = getOutputFor(kind);
+    if (!output) return;
+
+    try {
+      await navigator.clipboard.writeText(output);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/40">
@@ -438,41 +631,59 @@ export default function Home() {
 
                 <TabsContent value="pretty" className="space-y-2">
                   {showCounts && (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Tokens</div>
-                          <div className="tabular-nums">{prettyTokenCounts.tokens}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Characters</div>
-                          <div className="tabular-nums">{prettyTokenCounts.chars}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Bytes</div>
-                          <div className="tabular-nums">{prettyTokenCounts.bytes}</div>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Tokens</div>
+                        <div className="tabular-nums">{prettyTokenCounts.tokens}</div>
                       </div>
-                    )}
-                    {showTokens && (
-                      <div className="flex justify-between items-center">
-                        <ButtonGroup>
-                          <Button
-                              variant={tokenViewPerTab.pretty === "text" ? "default" : "outline"}
-                              onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "text" })}
-                            >
-                            Text
-                          </Button>
-                          <Button
-                            variant={tokenViewPerTab.pretty === "ids" ? "default" : "outline"}
-                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "ids" })}
-                          >
-                            Token IDs
-                          </Button>
-                        </ButtonGroup>
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Characters</div>
+                        <div className="tabular-nums">{prettyTokenCounts.chars}</div>
                       </div>
-                    )}
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Bytes</div>
+                        <div className="tabular-nums">{prettyTokenCounts.bytes}</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyOutput("pretty")}
+                      disabled={!getOutputFor("pretty")}
+                    >
+                      Copy output
+                    </Button>
+                  {showTokens && (
+                    <div className="flex items-center gap-3">
+                      <ButtonGroup>
+                        <Button
+                          variant={tokenViewPerTab.pretty === "text" ? "default" : "outline"}
+                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "text" })}
+                        >
+                          Text
+                        </Button>
+                        <Button
+                          variant={tokenViewPerTab.pretty === "ids" ? "default" : "outline"}
+                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, pretty: "ids" })}
+                        >
+                          Token IDs
+                        </Button>
+                      </ButtonGroup>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCopyTokenIds("pretty")}
+                        disabled={getTokenIdsFor("pretty").length === 0}
+                      >
+                        Copy token IDs
+                      </Button>
+                    </div>
+                  )}
+                  </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
                       {showTokens && tokenViewPerTab.pretty === "text" && prettyTokens ? (
@@ -488,23 +699,59 @@ export default function Home() {
 
                 <TabsContent value="minified" className="space-y-2">
                   {showCounts && (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Tokens</div>
-                          <div className="tabular-nums">{minifiedTokenCounts.tokens}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Characters</div>
-                          <div className="tabular-nums">{minifiedTokenCounts.chars}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Bytes</div>
-                          <div className="tabular-nums">{minifiedTokenCounts.bytes}</div>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Tokens</div>
+                        <div className="tabular-nums">{minifiedTokenCounts.tokens}</div>
                       </div>
-                    )}
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Characters</div>
+                        <div className="tabular-nums">{minifiedTokenCounts.chars}</div>
+                      </div>
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Bytes</div>
+                        <div className="tabular-nums">{minifiedTokenCounts.bytes}</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyOutput("minified")}
+                      disabled={!getOutputFor("minified")}
+                    >
+                      Copy output
+                    </Button>
+                  {showTokens && (
+                    <div className="flex items-center gap-3">
+                      <ButtonGroup>
+                        <Button
+                          variant={tokenViewPerTab.minified === "text" ? "default" : "outline"}
+                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, minified: "text" })}
+                        >
+                          Text
+                        </Button>
+                        <Button
+                          variant={tokenViewPerTab.minified === "ids" ? "default" : "outline"}
+                          onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, minified: "ids" })}
+                        >
+                          Token IDs
+                        </Button>
+                      </ButtonGroup>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCopyTokenIds("minified")}
+                        disabled={getTokenIdsFor("minified").length === 0}
+                      >
+                        Copy token IDs
+                      </Button>
+                    </div>
+                  )}
+                  </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
                       {showTokens && tokenViewPerTab.minified === "text" && minifiedTokens ? (
@@ -520,23 +767,59 @@ export default function Home() {
 
                 <TabsContent value="yaml" className="space-y-2">
                   {showCounts && (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Tokens</div>
-                          <div className="tabular-nums">{yamlTokenCounts.tokens}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Characters</div>
-                          <div className="tabular-nums">{yamlTokenCounts.chars}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Bytes</div>
-                          <div className="tabular-nums">{yamlTokenCounts.bytes}</div>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Tokens</div>
+                        <div className="tabular-nums">{yamlTokenCounts.tokens}</div>
                       </div>
-                    )}
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Characters</div>
+                        <div className="tabular-nums">{yamlTokenCounts.chars}</div>
+                      </div>
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Bytes</div>
+                        <div className="tabular-nums">{yamlTokenCounts.bytes}</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyOutput("yaml")}
+                      disabled={!getOutputFor("yaml")}
+                    >
+                      Copy output
+                    </Button>
+                  {showTokens && (
+                      <div className="flex items-center gap-3">
+                        <ButtonGroup>
+                          <Button
+                            variant={tokenViewPerTab.yaml === "text" ? "default" : "outline"}
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, yaml: "text" })}
+                          >
+                            Text
+                          </Button>
+                          <Button
+                            variant={tokenViewPerTab.yaml === "ids" ? "default" : "outline"}
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, yaml: "ids" })}
+                          >
+                            Token IDs
+                          </Button>
+                        </ButtonGroup>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyTokenIds("yaml")}
+                          disabled={getTokenIdsFor("yaml").length === 0}
+                        >
+                          Copy token IDs
+                        </Button>
+                      </div>
+                  )}
+                  </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
                       {showTokens && tokenViewPerTab.yaml === "text" && yamlTokens ? (
@@ -552,23 +835,59 @@ export default function Home() {
 
                 <TabsContent value="toon" className="space-y-2">
                   {showCounts && (
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Tokens</div>
-                          <div className="tabular-nums">{toonTokenCounts.tokens}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Characters</div>
-                          <div className="tabular-nums">{toonTokenCounts.chars}</div>
-                        </div>
-
-                        <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
-                          <div className="font-medium">Bytes</div>
-                          <div className="tabular-nums">{toonTokenCounts.bytes}</div>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Tokens</div>
+                        <div className="tabular-nums">{toonTokenCounts.tokens}</div>
                       </div>
-                    )}
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Characters</div>
+                        <div className="tabular-nums">{toonTokenCounts.chars}</div>
+                      </div>
+
+                      <div className="rounded-md border border-border/60 bg-muted p-2 text-xs text-muted-foreground">
+                        <div className="font-medium">Bytes</div>
+                        <div className="tabular-nums">{toonTokenCounts.bytes}</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyOutput("toon")}
+                      disabled={!getOutputFor("toon")}
+                    >
+                      Copy output
+                    </Button>
+                  {showTokens && (
+                      <div className="flex items-center gap-3">
+                        <ButtonGroup>
+                          <Button
+                            variant={tokenViewPerTab.toon === "text" ? "default" : "outline"}
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, toon: "text" })}
+                          >
+                            Text
+                          </Button>
+                          <Button
+                            variant={tokenViewPerTab.toon === "ids" ? "default" : "outline"}
+                            onClick={() => setTokenViewPerTab({ ...tokenViewPerTab, toon: "ids" })}
+                          >
+                            Token IDs
+                          </Button>
+                        </ButtonGroup>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyTokenIds("toon")}
+                          disabled={getTokenIdsFor("toon").length === 0}
+                        >
+                          Copy token IDs
+                        </Button>
+                      </div>
+                  )}
+                  </div>
                   <pre className="max-h-[360px] overflow-auto rounded-md bg-muted px-3 py-2 text-xs leading-relaxed md:text-sm">
                     <code>
                       {showTokens && tokenViewPerTab.toon === "text" && toonTokens ? (
