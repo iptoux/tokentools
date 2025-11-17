@@ -242,8 +242,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-fit bg-gradient-to-b from-background to-muted/40">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 md:px-8 lg:py-16">
+      <main className="mx-auto flex h-full w-full max-w-6xl flex-col gap-8 px-4 py-10 md:px-8 lg:py-16">
 
         <section className="grid flex-1 gap-6 lg:grid-cols-2">
           <InputCard
@@ -303,7 +302,5 @@ export default function Home() {
           </section>
         )}
       </main>
-      
-    </div>
   );
 }
