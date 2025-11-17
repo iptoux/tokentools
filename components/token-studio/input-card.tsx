@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type InputCardProps = {
   input: string;
@@ -80,14 +81,16 @@ export function InputCard({ input, onInputChange, error, onFileLoad }: InputCard
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="space-y-2">
           <Label htmlFor="json-input">Payload</Label>
-          <Textarea
-            id="json-input"
-            value={input}
-            onChange={(event) => onInputChange(event.target.value)}
-            spellCheck={false}
-            className="min-h-[240px] font-mono text-xs md:text-sm"
-            placeholder='{"hello": "world"}'
-          />
+          <ScrollArea className="h-[400px] rounded-md border">
+            <Textarea
+              id="json-input"
+              value={input}
+              onChange={(event) => onInputChange(event.target.value)}
+              spellCheck={false}
+              className="min-h-full border-0 font-mono text-xs md:text-sm resize-none"
+              placeholder='{"hello": "world"}'
+            />
+          </ScrollArea>
         </div>
         {error && (
           <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">

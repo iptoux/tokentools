@@ -55,7 +55,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <div className="h-full flex flex-col bg-gradient-to-b from-background to-muted/40">
+            <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/40">
               <Navbar />
               {children}
               <Footer />

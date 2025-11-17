@@ -242,9 +242,9 @@ export default function Home() {
   };
 
   return (
-      <main className="mx-auto flex h-full w-full max-w-6xl flex-col gap-8 px-4 py-10 md:px-8 lg:py-16">
+      <main className="mx-auto flex flex-1 w-full max-w-6xl flex-col justify-center gap-8 px-4 py-14 md:px-8 lg:py-20">
 
-        <section className="grid flex-1 gap-6 lg:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-2">
           <InputCard
             input={input}
             onInputChange={setInput}
