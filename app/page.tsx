@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Copy, Code } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,6 +213,7 @@ function toToonEncoding(parsed: unknown, delimiter: "," | "\t" | "|" = ",", keyF
 }
 
 export default function Home() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [input, setInput] = useState<string>('{"hello": "world"}');
   const [encodingFormat, setEncodingFormat] = useState<EncodingFormat>("base64");
   const [encodingStrength, setEncodingStrength] = useState<number>(2);
@@ -232,6 +233,18 @@ export default function Home() {
   const [exactTokens, setExactTokens] = useState<Record<string, Token[]>>({});
   const [isTokenizing, setIsTokenizing] = useState<boolean>(false);
   const [tokenizeError, setTokenizeError] = useState<string>("");
+
+  const handleFileLoad = (file: File) => {
+    if (file && file.type === "application/json") {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setInput(event.target.result as string);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
 
   const { error, prettyJson, minifiedJson, yaml, toon } = useMemo(() => {
     if (!input.trim()) {
@@ -598,6 +611,45 @@ export default function Home() {
                       <SelectItem value="url-safe">url-safe</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div 
+                  className="rounded-md border-2 border-dashed border-muted-foreground/30 bg-muted/20 p-6 text-center transition-colors hover:border-muted-foreground/50 hover:bg-muted/40 cursor-pointer"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.add("border-primary", "bg-primary/5");
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.classList.remove("border-primary", "bg-primary/5");
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("border-primary", "bg-primary/5");
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                      handleFileLoad(file);
+                    }
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input 
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleFileLoad(file);
+                      }
+                    }}
+                  />
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-2xl">↓</div>
+                    <p className="text-center text-sm text-muted-foreground leading-relaxed">
+                      Paste or load sample JSON on the left to see how tokens and bytes shift across formats.
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
