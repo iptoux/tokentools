@@ -46,7 +46,7 @@ export function OutputTabContent({
 
   return (
     <div className="space-y-2">
-      {showCounts && <CountsDisplay counts={counts} />}
+      {showCounts && <CountsDisplay counts={counts} tokens={tokens} />}
       <OutputActions
         showTokens={showTokens}
         showCopyReady={showCopyReady}

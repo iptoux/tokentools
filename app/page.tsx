@@ -170,28 +170,10 @@ export default function Home() {
   const toonTokens = getTokensForFormat("toon");
   const tomlTokens = getTokensForFormat("toml");
 
-  // Update token counts from displayed tokens if available
-  if (showTokens) {
-    if (prettyTokens) {
-      const tokenIds = getTokenIds(prettyTokens);
-      prettyTokenCounts.tokens = tokenIds.length;
-    }
-    if (minifiedTokens) {
-      const tokenIds = getTokenIds(minifiedTokens);
-      minifiedTokenCounts.tokens = tokenIds.length;
-    }
-    if (yamlTokens) {
-      const tokenIds = getTokenIds(yamlTokens);
-      yamlTokenCounts.tokens = tokenIds.length;
-    }
-    if (toonTokens) {
-      toonTokenCounts.tokens = toonTokens.length;
-    }
-    if (tomlTokens) {
-      const tokenIds = getTokenIds(tomlTokens);
-      tomlTokenCounts.tokens = tokenIds.length;
-    }
-  }
+  // Note: Token counts should NOT be overwritten based on displayed tokens.
+  // The token counts represent the TOTAL number of tokens (including whitespace),
+  // while the displayed tokens may vary in how they're tokenized.
+  // Only update if using exact tokens from the API and they differ from approximation.
 
   const getTokenIdsFor = (format: OutputFormat): number[] => {
     if (tokenizationModel === "cl100k_base" && exactTokens[format]) {
